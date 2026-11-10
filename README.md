@@ -17,16 +17,16 @@ While conventional server plugins rely on high-level gameplay event abstractions
 
 ---
 
-## 🎯 Why Does PeakMC Need In-Depth BDS Symbols?
+## 🎯 Engine Integration & Internal Symbols
 
 In the Bedrock Dedicated Server architecture, inbound packet handling is strictly routed through `ServerNetworkHandler`. Unlike engines that use a generic dispatch queue, BDS declares explicit overload methods for every individual packet structure:
 
 ```cpp
 virtual void handle(NetworkIdentifier const& source, PacketType const& packet);
-MCNAPI void $handle(NetworkIdentifier const& source, PacketType const& packet);
+void $handle(NetworkIdentifier const& source, PacketType const& packet);
 ```
 
-To provide zero-overhead packet filtering, pre-dispatch sanitization, and state validation before internal engine mutations occur, PeakMC must hook directly into:
+To provide zero-overhead packet filtering, pre-dispatch sanitization, and state validation before internal engine mutations occur, PeakMC directly interfaces with:
 
 1. **Inbound Packet Dispatchers (`ServerNetworkHandler::handle`)**:
    - Authentication and Handshake (`ClientToServerHandshakePacket`, `SubClientLoginPacket`).
@@ -40,7 +40,7 @@ To provide zero-overhead packet filtering, pre-dispatch sanitization, and state 
    - Multi-session sub-client synchronization (`sendSubClientLoginMessageLocal`, `onTransferRequest`).
    - Disconnect handling and state cleanup (`onTick`, `removeFromDenyList`).
 
-Without public linkage symbols (`MCAPI`) for these methods in LeviLamina's headers, low-level network modules cannot link against BDS and are forced into fragile manual signature scanning. Exposing these declarations through LeviLamina's symbol pipeline ensures stable ABI compliance across server updates.
+PeakMC hooks and overrides these handlers to implement strict protocol analysis, custom rate limiting, and exploit mitigations. Interacting with these packet types and lifecycle handlers at native speed requires linking against these underlying BDS internal routines.
 
 ---
 
@@ -81,18 +81,6 @@ Without public linkage symbols (`MCAPI`) for these methods in LeviLamina's heade
 * **`PeakMC::Security`**: Inbound payload validation, packet flood dampening, malformed packet violation handling.
 * **`PeakMC::Session`**: Handshake verification, connection negotiation, sub-client multi-seat routing.
 * **`PeakMC::Sync`**: Low-latency player movement prediction verification and server-side state confirmation.
-
----
-
-## 🗺️ Symbol Resolution Status
-
-We are systematically requesting missing `MCNAPI` symbols from the LeviLamina symbol index:
-
-| Header Component | Subsystem Focus | Request Batch | Status |
-|---|---|---|---|
-| `ServerNetworkHandler.h` | Packet Dispatch & Handlers (Part 1) | [`ServerNetworkHandler_part1.md`](https://github.com/LiteLDev/mcapi-requests) | ⏳ Prepared |
-| `ServerNetworkHandler.h` | Packet Dispatch & Handlers (Part 2) | [`ServerNetworkHandler_part2.md`](https://github.com/LiteLDev/mcapi-requests) | ⏳ Prepared |
-| `ServerNetworkHandler.h` | Connection Lifecycle & SubClients (Part 3) | [`ServerNetworkHandler_part3.md`](https://github.com/LiteLDev/mcapi-requests) | ⏳ Prepared |
 
 ---
 
